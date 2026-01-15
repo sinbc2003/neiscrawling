@@ -1,0 +1,7 @@
+curl 'https://jsonplaceholder.typicode.com/posts' \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json'
+
+# 이것은 예제 curl 명령어입니다
+# JSONPlaceholder라는 무료 테스트 API를 사용합니다
+# 실제 사용시에는 크롤링하려는 웹사이트의 curl 명령어를 사용하세요
