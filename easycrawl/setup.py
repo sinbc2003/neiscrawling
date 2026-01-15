@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="easycrawl",
-    version="0.1.0",
+    version="0.2.0",
     author="EasyCrawl Team",
     author_email="easycrawl@example.com",
     description="AI 기반 웹 크롤러 자동 생성 도구 - 코딩 없이 누구나 쉽게!",
@@ -32,14 +32,24 @@ setup(
         "rich>=13.7.0",
         "pydantic>=2.0.0",
         "click>=8.1.0",
+        "flask>=3.0.0",
+        "flask-cors>=4.0.0",
+        "flask-socketio>=5.3.0",
+        "sqlalchemy>=2.0.0",
     ],
     entry_points={
         "console_scripts": [
             "easycrawl=easycrawl.cli:main",
+            "easycrawl-web=easycrawl.web_cli:main",
         ],
     },
     include_package_data=True,
     package_data={
-        "easycrawl": ["templates/*.py"],
+        "easycrawl": [
+            "templates/*.py",
+            "web/templates/*.html",
+            "web/static/css/*.css",
+            "web/static/js/*.js",
+        ],
     },
 )

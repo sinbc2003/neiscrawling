@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyCrawl - AI 웹 크롤러 생성 도구</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* 커스텀 스타일 */
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* 부드러운 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 프로그레스 바 애니메이션 */
+        .progress-bar {
+            transition: width 0.5s ease-out;
+        }
+
+        /* 버튼 호버 효과 */
+        .btn-hover {
+            transition: all 0.2s ease;
+        }
+
+        .btn-hover:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* ChatGPT 스타일 그라데이션 */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        /* 사이드바 아이템 호버 */
+        .sidebar-item {
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            transform: translateX(4px);
+        }
+
+        /* 다크 모드 색상 */
+        :root {
+            --bg-primary: #1f1f1f;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3a3a3a;
+            --text-primary: #ececec;
+            --text-secondary: #b3b3b3;
+            --accent: #667eea;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- 사이드바 -->
+        <div class="w-80 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+            <!-- 헤더 -->
+            <div class="p-4 border-b border-zinc-800">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <h1 class="text-xl font-bold text-white">EasyCrawl</h1>
+                    </div>
+                </div>
+
+                <button
+                    id="btn-new-crawler"
+                    class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 rounded-lg font-semibold btn-hover flex items-center justify-center gap-2">
+                    <i data-lucide="plus" class="w-5 h-5"></i>
+                    새 크롤러 만들기
+                </button>
+            </div>
+
+            <!-- 검색 -->
+            <div class="p-4 border-b border-zinc-800">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="크롤러 검색..."
+                        class="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- 크롤러 목록 -->
+            <div class="flex-1 overflow-y-auto scrollbar-hide p-2">
+                <div id="crawler-list" class="space-y-1">
+                    <!-- 동적으로 생성됨 -->
+                    <div class="text-center text-gray-500 py-8">
+                        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                        <p class="text-sm">크롤러가 없습니다</p>
+                        <p class="text-xs mt-1">새 크롤러를 만들어보세요!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 푸터 -->
+            <div class="p-4 border-t border-zinc-800 text-center text-xs text-gray-500">
+                <p>EasyCrawl v0.2.0</p>
+                <p class="mt-1">Made with ❤️ by AI</p>
+            </div>
+        </div>
+
+        <!-- 메인 컨텐츠 -->
+        <div class="flex-1 flex flex-col">
+            <!-- 상단 바 -->
+            <div class="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6">
+                <div>
+                    <h2 id="main-title" class="text-lg font-semibold text-white">크롤러 만들기</h2>
+                    <p id="main-subtitle" class="text-sm text-gray-400">AI가 자동으로 웹 크롤러를 만들어드립니다</p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- 상태 표시 -->
+                    <div id="connection-status" class="flex items-center gap-2 text-sm">
+                        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <span class="text-gray-400">연결됨</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 메인 영역 -->
+            <div class="flex-1 overflow-y-auto scrollbar-hide bg-zinc-950">
+                <div id="main-content" class="max-w-4xl mx-auto p-8">
+                    <!-- 새 크롤러 생성 폼 -->
+                    <div id="create-form" class="space-y-6 fade-in">
+                        <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <i data-lucide="wand-2" class="w-6 h-6 text-purple-500"></i>
+                                크롤러 정보
+                            </h3>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">크롤러 이름 *</label>
+                                    <input
+                                        id="crawler-name"
+                                        type="text"
+                                        placeholder="예: neis_qa_crawler"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">설명 (선택)</label>
+                                    <textarea
+                                        id="crawler-description"
+                                        rows="2"
+                                        placeholder="이 크롤러가 하는 일을 간단히 설명해주세요"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"></textarea>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Claude API 키 *</label>
+                                    <input
+                                        id="api-key"
+                                        type="password"
+                                        placeholder="sk-ant-xxxxx"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        <a href="https://console.anthropic.com/" target="_blank" class="text-blue-500 hover:underline">
+                                            Claude Console에서 API 키 발급하기 →
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <i data-lucide="code" class="w-6 h-6 text-blue-500"></i>
+                                curl 명령어
+                            </h3>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">
+                                    브라우저 개발자도구에서 복사한 curl 명령어를 붙여넣으세요 *
+                                </label>
+                                <textarea
+                                    id="curl-command"
+                                    rows="8"
+                                    placeholder="curl 'https://api.example.com/data' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{...}'"
+                                    class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono text-sm"></textarea>
+
+                                <details class="mt-3">
+                                    <summary class="text-sm text-blue-500 cursor-pointer hover:underline">
+                                        📖 curl 명령어 복사 방법 보기
+                                    </summary>
+                                    <div class="mt-2 text-sm text-gray-400 space-y-1 pl-4">
+                                        <p>1. 크롬에서 F12 (개발자도구)</p>
+                                        <p>2. Network 탭 클릭</p>
+                                        <p>3. 웹사이트에서 데이터 불러오기 (검색, 페이지 이동 등)</p>
+                                        <p>4. API 호출 찾기 (Fetch/XHR 탭)</p>
+                                        <p>5. 우클릭 > Copy > Copy as cURL</p>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <i data-lucide="settings" class="w-6 h-6 text-green-500"></i>
+                                설정
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">출력 형식</label>
+                                    <select
+                                        id="output-format"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                                        <option value="jsonl">JSONL (권장)</option>
+                                        <option value="json">JSON</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">크롤링 속도 (ms)</label>
+                                    <input
+                                        id="request-delay"
+                                        type="number"
+                                        value="500"
+                                        step="100"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium mb-2">추가 정보 (선택)</label>
+                                <textarea
+                                    id="additional-info"
+                                    rows="2"
+                                    placeholder="전체 데이터 개수, 페이지네이션 방식 등"
+                                    class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button
+                                id="btn-create"
+                                class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-lg font-semibold btn-hover flex items-center justify-center gap-2 text-lg">
+                                <i data-lucide="sparkles" class="w-6 h-6"></i>
+                                AI로 크롤러 생성하기
+                            </button>
+                        </div>
+
+                        <div id="create-status" class="hidden">
+                            <!-- 생성 중 상태 표시 -->
+                        </div>
+                    </div>
+
+                    <!-- 크롤러 상세/실행 화면 -->
+                    <div id="crawler-detail" class="hidden space-y-6 fade-in">
+                        <!-- 동적으로 생성됨 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 앱 로직 -->
+    <script src="/static/js/app.js"></script>
+
+    <script>
+        // Lucide 아이콘 초기화
+        lucide.createIcons();
+    </script>
+</body>
+</html>
