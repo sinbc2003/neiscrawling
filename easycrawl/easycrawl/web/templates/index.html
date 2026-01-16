@@ -108,28 +108,51 @@
                 </button>
             </div>
 
-            <!-- 검색 -->
-            <div class="p-4 border-b border-zinc-800">
-                <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
-                    <input
-                        id="search-input"
-                        type="text"
-                        placeholder="크롤러 검색..."
-                        class="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
-                </div>
-            </div>
+            <!-- 메인 메뉴 -->
+            <div class="flex-1 overflow-y-auto scrollbar-hide">
+                <!-- 크롤러 메뉴 -->
+                <div class="border-b border-zinc-800">
+                    <button
+                        id="menu-crawler"
+                        class="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-800 transition-colors"
+                        onclick="toggleCrawlerMenu()">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="bot" class="w-5 h-5 text-blue-400"></i>
+                            <span class="font-medium text-white">크롤러</span>
+                        </div>
+                        <i id="crawler-menu-icon" data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform"></i>
+                    </button>
 
-            <!-- 크롤러 목록 -->
-            <div class="flex-1 overflow-y-auto scrollbar-hide p-2">
-                <div id="crawler-list" class="space-y-1">
-                    <!-- 동적으로 생성됨 -->
-                    <div class="text-center text-gray-500 py-8">
-                        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
-                        <p class="text-sm">크롤러가 없습니다</p>
-                        <p class="text-xs mt-1">새 크롤러를 만들어보세요!</p>
+                    <!-- 크롤러 서브메뉴 -->
+                    <div id="crawler-submenu" class="bg-zinc-950">
+                        <!-- 검색 -->
+                        <div class="px-4 py-2">
+                            <div class="relative">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+                                <input
+                                    id="search-input"
+                                    type="text"
+                                    placeholder="크롤러 검색..."
+                                    class="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <!-- 크롤러 목록 -->
+                        <div class="max-h-96 overflow-y-auto scrollbar-hide p-2">
+                            <div id="crawler-list" class="space-y-1">
+                                <!-- 동적으로 생성됨 -->
+                                <div class="text-center text-gray-500 py-8">
+                                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                                    <p class="text-sm">크롤러가 없습니다</p>
+                                    <p class="text-xs mt-1">새 크롤러를 만들어보세요!</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <!-- 향후 추가될 메뉴들... -->
+                <!-- 예: 데이터 분석, 스케줄러 등 -->
             </div>
 
             <!-- 푸터 -->
@@ -182,11 +205,20 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-sm font-medium mb-2">설명 (선택)</label>
+                                    <label class="block text-sm font-medium mb-2">홈페이지 주소</label>
+                                    <input
+                                        id="website-url"
+                                        type="url"
+                                        placeholder="예: https://help.neis.go.kr"
+                                        class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">비고 (크롤러가 뭘 가져오는지)</label>
                                     <textarea
                                         id="crawler-description"
                                         rows="2"
-                                        placeholder="이 크롤러가 하는 일을 간단히 설명해주세요"
+                                        placeholder="예: NEIS 도움말 사이트의 Q&A 데이터를 수집합니다"
                                         class="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"></textarea>
                                 </div>
 

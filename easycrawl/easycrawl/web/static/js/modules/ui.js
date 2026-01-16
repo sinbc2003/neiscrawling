@@ -88,7 +88,15 @@ export const UI = {
                         onclick="window.toggleCrawlerSelection(${crawler.id})">
                     <div class="flex-1 min-w-0 cursor-pointer" onclick="window.selectCrawler(${crawler.id})">
                         <h4 class="text-sm font-semibold text-white truncate">${this.escapeHtml(crawler.name)}</h4>
-                        <p class="text-xs text-gray-500 truncate mt-1">${this.escapeHtml(crawler.description || '설명 없음')}</p>
+                        ${crawler.website_url ? `
+                            <p class="text-xs text-blue-400 truncate mt-1 flex items-center gap-1">
+                                <i data-lucide="link" class="w-3 h-3"></i>
+                                ${this.escapeHtml(crawler.website_url)}
+                            </p>
+                        ` : ''}
+                        ${crawler.description ? `
+                            <p class="text-xs text-gray-400 truncate mt-1">${this.escapeHtml(crawler.description)}</p>
+                        ` : ''}
                         <p class="text-xs text-gray-600 mt-1">${this.formatDate(crawler.created_at)}</p>
                     </div>
                 </div>

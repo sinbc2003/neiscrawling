@@ -31,6 +31,7 @@ window.stopCrawler = stopCrawler;
 window.viewCode = viewCode;
 window.downloadData = downloadData;
 window.loadCrawlers = loadCrawlers;
+window.toggleCrawlerMenu = toggleCrawlerMenu;
 
 // Socket.IO 연결
 function initSocket() {
@@ -129,14 +130,31 @@ function renderCrawlerDetail() {
                     삭제
                 </button>
             </div>
-            <div class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <p class="text-gray-500">출력 형식</p>
-                    <p class="text-white font-semibold mt-1">${crawler.output_format.toUpperCase()}</p>
-                </div>
-                <div>
-                    <p class="text-gray-500">요청 딜레이</p>
-                    <p class="text-white font-semibold mt-1">${crawler.request_delay}ms</p>
+            <div class="space-y-4 text-sm">
+                ${crawler.website_url ? `
+                    <div>
+                        <p class="text-gray-500">홈페이지 주소</p>
+                        <a href="${UI.escapeHtml(crawler.website_url)}" target="_blank" class="text-blue-400 hover:underline font-semibold mt-1 flex items-center gap-1">
+                            <i data-lucide="link" class="w-4 h-4"></i>
+                            ${UI.escapeHtml(crawler.website_url)}
+                        </a>
+                    </div>
+                ` : ''}
+                ${crawler.description ? `
+                    <div>
+                        <p class="text-gray-500">비고</p>
+                        <p class="text-white font-semibold mt-1">${UI.escapeHtml(crawler.description)}</p>
+                    </div>
+                ` : ''}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-gray-500">출력 형식</p>
+                        <p class="text-white font-semibold mt-1">${crawler.output_format.toUpperCase()}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">요청 딜레이</p>
+                        <p class="text-white font-semibold mt-1">${crawler.request_delay}ms</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -346,6 +364,7 @@ function showCreateForm() {
 // 크롤러 생성
 async function createCrawler() {
     const name = document.getElementById('crawler-name').value.trim();
+    const websiteUrl = document.getElementById('website-url').value.trim();
     const description = document.getElementById('crawler-description').value.trim();
     const apiKey = document.getElementById('api-key').value.trim();
     const curlCommand = document.getElementById('curl-command').value.trim();
@@ -370,6 +389,7 @@ async function createCrawler() {
     try {
         const result = await API.createCrawler({
             name,
+            website_url: websiteUrl,
             description,
             api_key: apiKey,
             curl_command: curlCommand,
@@ -403,6 +423,20 @@ function updateRunProgress(data) {
 
     if (data.collected % 100 === 0) {
         selectCrawler(state.currentCrawler.id);
+    }
+}
+
+// 크롤러 메뉴 토글
+function toggleCrawlerMenu() {
+    const submenu = document.getElementById('crawler-submenu');
+    const icon = document.getElementById('crawler-menu-icon');
+
+    if (submenu.classList.contains('hidden')) {
+        submenu.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        submenu.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
     }
 }
 

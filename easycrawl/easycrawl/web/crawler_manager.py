@@ -36,6 +36,7 @@ class CrawlerManager:
         name: str,
         curl_command: str,
         api_key: str,
+        website_url: str = "",
         description: str = "",
         output_format: str = "jsonl",
         request_delay: int = 500,
@@ -71,6 +72,7 @@ class CrawlerManager:
             # DB에 저장
             crawler = Crawler(
                 name=name,
+                website_url=website_url,
                 description=description,
                 spec=spec.dict(),
                 output_format=output_format,

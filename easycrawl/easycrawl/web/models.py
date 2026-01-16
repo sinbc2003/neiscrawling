@@ -29,7 +29,8 @@ class Crawler(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
-    description = Column(Text)
+    website_url = Column(String(500))  # 홈페이지 주소
+    description = Column(Text)  # 비고 (크롤러가 뭘 가져오는지)
 
     # 크롤러 사양 (JSON)
     spec = Column(JSON, nullable=False)
@@ -54,6 +55,7 @@ class Crawler(Base):
         return {
             'id': self.id,
             'name': self.name,
+            'website_url': self.website_url,
             'description': self.description,
             'spec': self.spec,
             'output_format': self.output_format,

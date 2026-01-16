@@ -36,6 +36,7 @@ def register_routes(app, crawler_manager):
             name=data['name'],
             curl_command=data['curl_command'],
             api_key=data['api_key'],
+            website_url=data.get('website_url', ''),
             description=data.get('description', ''),
             output_format=data.get('output_format', 'jsonl'),
             request_delay=data.get('request_delay', 500),
