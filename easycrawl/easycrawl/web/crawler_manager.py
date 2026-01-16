@@ -1,34 +1,35 @@
 """
-크롤러 관리자
-크롤러의 생성, 실행, 일시정지, 재개, 취소 등을 관리
+크롤러 관리자 (통합 인터페이스)
+실제 기능은 managers 패키지로 위임
 """
 
 import os
-import subprocess
-import signal
-import json
-import threading
-import time
-from datetime import datetime
 from typing import Optional, Dict, List
 
 from .models import get_db_session, Crawler, CrawlerRun, CrawlerStatus
+from .managers import ProcessManager, BatchManager
 from ..llm_analyzer import LLMAnalyzer
 from ..crawler_generator import CrawlerGenerator
 
 
 class CrawlerManager:
-    """크롤러 생성 및 실행 관리"""
+    """크롤러 생성 및 실행 관리 (통합 인터페이스)"""
 
     def __init__(self, db_path='easycrawl.db', socketio=None):
         self.db_path = db_path
         self.socketio = socketio
-        self.running_processes = {}  # {run_id: subprocess.Popen}
-        self.monitor_threads = {}    # {run_id: threading.Thread}
+
+        # 하위 관리자들
+        self.process_manager = ProcessManager(db_path, socketio)
+        self.batch_manager = BatchManager(db_path, socketio)
 
     def get_session(self):
         """DB 세션 가져오기"""
         return get_db_session(self.db_path)
+
+    # ============================================================
+    # 크롤러 CRUD
+    # ============================================================
 
     def create_crawler(
         self,
@@ -41,22 +42,7 @@ class CrawlerManager:
         additional_info: str = "",
         tags: List[str] = None
     ) -> Dict:
-        """
-        새 크롤러 생성
-
-        Args:
-            name: 크롤러 이름
-            curl_command: curl 명령어
-            api_key: Claude API 키
-            description: 설명
-            output_format: 출력 형식
-            request_delay: 요청 딜레이 (밀리초)
-            additional_info: 추가 정보
-            tags: 태그 목록
-
-        Returns:
-            생성된 크롤러 정보
-        """
+        """새 크롤러 생성"""
         session = self.get_session()
 
         try:
@@ -68,7 +54,7 @@ class CrawlerManager:
             generator = CrawlerGenerator(spec)
             code = generator.generate_code(
                 output_format=output_format,
-                request_delay=request_delay / 1000.0,  # 초로 변환
+                request_delay=request_delay / 1000.0,
                 project_name=name
             )
 
@@ -113,14 +99,12 @@ class CrawlerManager:
 
         query = session.query(Crawler)
 
-        # 검색
         if search:
             query = query.filter(
                 Crawler.name.contains(search) |
                 Crawler.description.contains(search)
             )
 
-        # 태그 필터
         if tag:
             query = query.filter(Crawler.tags.contains(tag))
 
@@ -178,146 +162,47 @@ class CrawlerManager:
             session.close()
             return {'success': False, 'error': str(e)}
 
-    def start_crawler(self, crawler_id: int, from_scratch: bool = False) -> Dict:
+    # ============================================================
+    # 단일 크롤러 실행 제어
+    # ============================================================
+
+    def start_crawler(
+        self,
+        crawler_id: int,
+        from_scratch: bool = False,
+        collection_mode: str = 'from_scratch'
+    ) -> Dict:
         """
         크롤러 시작
 
         Args:
             crawler_id: 크롤러 ID
-            from_scratch: 처음부터 시작 (체크포인트 무시)
+            from_scratch: 처음부터 시작 (하위 호환성 유지)
+            collection_mode: 수집 모드
+                - from_scratch: 처음부터 수집
+                - fresh_start: 데이터 삭제 후 처음부터
+                - incremental: 이어서 수집
         """
-        session = self.get_session()
+        # from_scratch가 True면 collection_mode 덮어쓰기
+        if from_scratch:
+            collection_mode = 'from_scratch'
 
-        try:
-            crawler = session.query(Crawler).filter_by(id=crawler_id).first()
-            if not crawler:
-                return {'success': False, 'error': 'Crawler not found'}
-
-            # 실행 기록 생성
-            run = CrawlerRun(
-                crawler_id=crawler_id,
-                status=CrawlerStatus.RUNNING,
-                started_at=datetime.utcnow(),
-                log_file_path=os.path.join(
-                    os.path.dirname(crawler.code_file_path),
-                    'crawler.log'
-                )
-            )
-
-            session.add(run)
-            session.commit()
-
-            run_id = run.id
-
-            # 체크포인트 삭제 (처음부터 시작)
-            if from_scratch:
-                checkpoint_file = os.path.join(
-                    os.path.dirname(crawler.code_file_path),
-                    'crawler_checkpoint.json'
-                )
-                if os.path.exists(checkpoint_file):
-                    os.remove(checkpoint_file)
-
-            # 크롤러 실행
-            process = subprocess.Popen(
-                ['python', crawler.code_file_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1
-            )
-
-            run.pid = process.pid
-            session.commit()
-
-            # 프로세스 저장
-            self.running_processes[run_id] = process
-
-            # 모니터링 스레드 시작
-            monitor_thread = threading.Thread(
-                target=self._monitor_crawler,
-                args=(run_id, crawler_id, process),
-                daemon=True
-            )
-            monitor_thread.start()
-            self.monitor_threads[run_id] = monitor_thread
-
-            session.close()
-
-            return {'success': True, 'run_id': run_id, 'pid': process.pid}
-
-        except Exception as e:
-            session.rollback()
-            session.close()
-            return {'success': False, 'error': str(e)}
+        return self.batch_manager.start_batch([crawler_id], collection_mode)['results'][0]
 
     def pause_crawler(self, run_id: int) -> Dict:
         """크롤러 일시정지"""
-        if run_id not in self.running_processes:
-            return {'success': False, 'error': 'Process not found'}
-
-        try:
-            process = self.running_processes[run_id]
-            os.kill(process.pid, signal.SIGSTOP)
-
-            session = self.get_session()
-            run = session.query(CrawlerRun).filter_by(id=run_id).first()
-            if run:
-                run.status = CrawlerStatus.PAUSED
-                run.paused_at = datetime.utcnow()
-                session.commit()
-            session.close()
-
-            return {'success': True}
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        success = self.process_manager.pause_process(run_id)
+        return {'success': success}
 
     def resume_crawler(self, run_id: int) -> Dict:
         """크롤러 재개"""
-        if run_id not in self.running_processes:
-            return {'success': False, 'error': 'Process not found'}
-
-        try:
-            process = self.running_processes[run_id]
-            os.kill(process.pid, signal.SIGCONT)
-
-            session = self.get_session()
-            run = session.query(CrawlerRun).filter_by(id=run_id).first()
-            if run:
-                run.status = CrawlerStatus.RUNNING
-                session.commit()
-            session.close()
-
-            return {'success': True}
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        success = self.process_manager.resume_process(run_id)
+        return {'success': success}
 
     def stop_crawler(self, run_id: int) -> Dict:
         """크롤러 중지"""
-        if run_id not in self.running_processes:
-            return {'success': False, 'error': 'Process not found'}
-
-        try:
-            process = self.running_processes[run_id]
-            process.terminate()
-            process.wait(timeout=5)
-
-            session = self.get_session()
-            run = session.query(CrawlerRun).filter_by(id=run_id).first()
-            if run:
-                run.status = CrawlerStatus.CANCELLED
-                run.completed_at = datetime.utcnow()
-                session.commit()
-            session.close()
-
-            del self.running_processes[run_id]
-
-            return {'success': True}
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        success = self.process_manager.stop_process(run_id)
+        return {'success': success}
 
     def get_run_status(self, run_id: int) -> Optional[Dict]:
         """실행 상태 조회"""
@@ -332,69 +217,26 @@ class CrawlerManager:
         session.close()
         return result
 
-    def _monitor_crawler(self, run_id: int, crawler_id: int, process: subprocess.Popen):
-        """크롤러 모니터링 (별도 스레드)"""
-        session = self.get_session()
+    # ============================================================
+    # 일괄 실행 제어 (BatchManager로 위임)
+    # ============================================================
 
-        while True:
-            # 프로세스 종료 확인
-            if process.poll() is not None:
-                # 프로세스 종료됨
-                run = session.query(CrawlerRun).filter_by(id=run_id).first()
-                if run:
-                    if process.returncode == 0:
-                        run.status = CrawlerStatus.COMPLETED
-                    else:
-                        run.status = CrawlerStatus.FAILED
-                        # 에러 메시지 읽기
-                        stderr = process.stderr.read() if process.stderr else ""
-                        run.error_message = stderr[:1000]  # 처음 1000자만
+    def start_batch(self, crawler_ids: List[int], collection_mode: str = 'from_scratch') -> Dict:
+        """여러 크롤러 일괄 시작"""
+        return self.batch_manager.start_batch(crawler_ids, collection_mode)
 
-                    run.completed_at = datetime.utcnow()
-                    session.commit()
+    def stop_batch(self, run_ids: List[int]) -> Dict:
+        """여러 크롤러 일괄 중지"""
+        return self.batch_manager.stop_all(run_ids)
 
-                # 웹소켓으로 알림
-                if self.socketio:
-                    self.socketio.emit('crawler_finished', {
-                        'run_id': run_id,
-                        'status': run.status.value if run else 'unknown'
-                    })
+    def pause_batch(self, run_ids: List[int]) -> Dict:
+        """여러 크롤러 일괄 일시정지"""
+        return self.batch_manager.pause_all(run_ids)
 
-                if run_id in self.running_processes:
-                    del self.running_processes[run_id]
+    def resume_batch(self, run_ids: List[int]) -> Dict:
+        """여러 크롤러 일괄 재개"""
+        return self.batch_manager.resume_all(run_ids)
 
-                break
-
-            # 체크포인트 읽기
-            crawler = session.query(Crawler).filter_by(id=crawler_id).first()
-            if crawler:
-                checkpoint_file = os.path.join(
-                    os.path.dirname(crawler.code_file_path),
-                    'crawler_checkpoint.json'
-                )
-
-                if os.path.exists(checkpoint_file):
-                    try:
-                        with open(checkpoint_file, 'r') as f:
-                            checkpoint = json.load(f)
-
-                        run = session.query(CrawlerRun).filter_by(id=run_id).first()
-                        if run:
-                            run.checkpoint = checkpoint
-                            run.collected_items = checkpoint.get('total_collected', 0)
-                            session.commit()
-
-                            # 웹소켓으로 진행상황 전송
-                            if self.socketio:
-                                self.socketio.emit('crawler_progress', {
-                                    'run_id': run_id,
-                                    'collected': run.collected_items,
-                                    'progress': run.to_dict()['progress']
-                                })
-
-                    except Exception as e:
-                        pass
-
-            time.sleep(2)  # 2초마다 체크
-
-        session.close()
+    def get_batch_status(self, run_ids: List[int]) -> List[Dict]:
+        """여러 크롤러 상태 조회"""
+        return self.batch_manager.get_batch_status(run_ids)

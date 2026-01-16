@@ -84,6 +84,11 @@ class CrawlerRun(Base):
     # 체크포인트 정보
     checkpoint = Column(JSON)  # {page: 10, offset: 100}
 
+    # 이어서 수집을 위한 정보
+    last_collected_id = Column(String(255))  # 마지막 수집한 항목 ID
+    last_collected_date = Column(String(50))  # 마지막 수집한 항목 날짜
+    collection_mode = Column(String(50), default='from_scratch')  # from_scratch, fresh_start, incremental
+
     # 프로세스 정보
     pid = Column(Integer)  # 실행 중인 프로세스 ID
 
@@ -110,6 +115,9 @@ class CrawlerRun(Base):
             'failed_items': self.failed_items,
             'progress': round((self.collected_items / self.total_items * 100), 2) if self.total_items else 0,
             'checkpoint': self.checkpoint,
+            'last_collected_id': self.last_collected_id,
+            'last_collected_date': self.last_collected_date,
+            'collection_mode': self.collection_mode,
             'pid': self.pid,
             'log_file_path': self.log_file_path,
             'error_message': self.error_message,

@@ -64,8 +64,62 @@ def register_routes(app, crawler_manager):
         """크롤러 시작"""
         data = request.json or {}
         from_scratch = data.get('from_scratch', False)
+        collection_mode = data.get('collection_mode', 'from_scratch')
 
-        result = crawler_manager.start_crawler(crawler_id, from_scratch=from_scratch)
+        result = crawler_manager.start_crawler(
+            crawler_id,
+            from_scratch=from_scratch,
+            collection_mode=collection_mode
+        )
+        return jsonify(result)
+
+    @app.route('/api/batch/start', methods=['POST'])
+    def start_batch():
+        """여러 크롤러 일괄 시작"""
+        data = request.json or {}
+        crawler_ids = data.get('crawler_ids', [])
+        collection_mode = data.get('collection_mode', 'from_scratch')
+
+        if not crawler_ids:
+            return jsonify({'success': False, 'error': 'No crawler IDs provided'}), 400
+
+        result = crawler_manager.start_batch(crawler_ids, collection_mode)
+        return jsonify(result)
+
+    @app.route('/api/batch/stop', methods=['POST'])
+    def stop_batch():
+        """여러 크롤러 일괄 중지"""
+        data = request.json or {}
+        run_ids = data.get('run_ids', [])
+
+        if not run_ids:
+            return jsonify({'success': False, 'error': 'No run IDs provided'}), 400
+
+        result = crawler_manager.stop_batch(run_ids)
+        return jsonify(result)
+
+    @app.route('/api/batch/pause', methods=['POST'])
+    def pause_batch():
+        """여러 크롤러 일괄 일시정지"""
+        data = request.json or {}
+        run_ids = data.get('run_ids', [])
+
+        if not run_ids:
+            return jsonify({'success': False, 'error': 'No run IDs provided'}), 400
+
+        result = crawler_manager.pause_batch(run_ids)
+        return jsonify(result)
+
+    @app.route('/api/batch/resume', methods=['POST'])
+    def resume_batch():
+        """여러 크롤러 일괄 재개"""
+        data = request.json or {}
+        run_ids = data.get('run_ids', [])
+
+        if not run_ids:
+            return jsonify({'success': False, 'error': 'No run IDs provided'}), 400
+
+        result = crawler_manager.resume_batch(run_ids)
         return jsonify(result)
 
     @app.route('/api/runs/<int:run_id>/pause', methods=['POST'])
