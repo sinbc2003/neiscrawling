@@ -141,6 +141,9 @@
 
         <!-- 메인 컨텐츠 -->
         <div class="flex-1 flex flex-col">
+            <!-- 일괄 컨트롤 바 (선택시 표시) -->
+            <div id="batch-control-bar" class="hidden"></div>
+
             <!-- 상단 바 -->
             <div class="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6">
                 <div>
@@ -298,8 +301,8 @@
         </div>
     </div>
 
-    <!-- 앱 로직 -->
-    <script src="/static/js/app.js"></script>
+    <!-- 앱 로직 (ES6 모듈) -->
+    <script type="module" src="/static/js/app-new.js"></script>
 
     <script>
         // Lucide 아이콘 초기화
